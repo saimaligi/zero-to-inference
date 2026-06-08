@@ -1,0 +1,5 @@
+commands.txt
+slurm/
+.venv
+.claude
+.DS_Store
