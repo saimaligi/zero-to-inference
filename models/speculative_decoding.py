@@ -65,4 +65,3 @@ print(f"Tokens generated   : {tokens_generated}")
 print(f"Time taken         : {target_time:.2f}s")
 print(f"Speed              : {tokens_generated / draft_time:.2f} tokens/sec")
 
-
