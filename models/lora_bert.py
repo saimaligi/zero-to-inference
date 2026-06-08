@@ -4,6 +4,7 @@ Dataset : stanfordnlp/imdb  (public, no token needed)
 Model   : google-bert/bert-base-uncased
 """
 
+#saving in the cache and laoding offile
 import os
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
 os.environ['HF_DATASETS_OFFLINE'] = '1'
