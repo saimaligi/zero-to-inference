@@ -34,7 +34,6 @@ input_ids = input['input_ids']
 attention_mask = input['attention_mask']
 
 generation_config = dict(
-    attention_mask = attention_mask,
     do_sample = True, #Sampling not greedy approach
     temperature = 1.0,
     top_k = 50,
@@ -62,7 +61,7 @@ while len(generated_tokens) < max_new_tokens:
     base_len = current_ids.shape[1]
     draft_token_probs = []
     draft_token_ids = []
-    draft_probs = torch.zeros([k,tokenizer.vocab_size*1.5],device=device)
+    draft_probs = torch.zeros([k,draft_model.config.vocab_size],device=device)
 
     #1: Generate k tokens by draft_model
     for i in range(k): 
@@ -125,7 +124,7 @@ while len(generated_tokens) < max_new_tokens:
     # Keep original tokens + accepted draft tokens
     current_ids = current_ids[:,:base_len]
     for token in accepted:
-        token_tensor = torch.tensor([[token]])
+        token_tensor = torch.tensor([[token]]).to(device)
         current_ids = torch.cat([current_ids,token_tensor],dim=-1)
         generated_tokens.append(token)
         if token == tokenizer.eos_token_id:
