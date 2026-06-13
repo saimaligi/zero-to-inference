@@ -84,12 +84,28 @@ class Router(nn.Module):
         return probs #gives probabalities of experts
     
 class MoELayer(nn.Module):
-    def __init__(self,num_experts=4):
+    def __init__(self,num_experts=4,top_k=2):
         super().__init__()
         self.experts = nn.ModuleList([FFNN() for _ in range(num_experts)])
+        self.top_k = top_k
     def forward(self,x,probs):
-        #pick top-k and call FFNN for that particular experts
-        pass
+        #pick top-k and call FFNN for that particular experts and add them
+        #probs shape (B*T,num_experts) from here pick top-k
+        B,T,C = x.shape
+        x = x.view(-1,C)
+        output = torch.zeros(B*T,C,dtype=torch.float32)
+        top_probs,top_indices = torch.topk(probs,self.top_k,dim=-1)
+        #each row -> each word -> which experts to pick
+        top_probs = top_probs / (top_probs.sum(dim=-1, keepdim=True)+1e-20)
+        for i in range(num_experts):
+            row_indices,column_indices = (top_indices==i).nonzero(as_tuple=True)
+            expert_output = self.experts[i](x[row_indices])
+            gated_scores = top_probs[row_indices,column_indices].unsqueeze(-1)
+            expert_output *= gated_scores 
+            output.index_add(0,row_indices,expert_output)
+        return output.view(B,T,C)
+
+
 
 class TransformerBlock(nn.Module):
     def __init__(self):
