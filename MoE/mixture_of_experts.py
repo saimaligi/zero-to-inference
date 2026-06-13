@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 num_layers = 6
+num_experts = 4
 num_heads = 8
 batch_size = 4
 vocab_size = 10000
@@ -62,18 +63,48 @@ class FFNN(nn.Module):
         self.compress = nn.Linear(embd_dim*4,embd_dim)
     def forward(self,x):
         return self.compress(F.gelu(self.expand(x)))
+    
+class Router(nn.Module):
+    def __init__(self,num_experts=4):
+        super().__init__()
+        self.weights = nn.Linear(embd_dim,num_experts,bias=True)
+        self.noise = nn.Linear(embd_dim,num_experts,bias=True)
+    def forward(self,x):
+        B,T,C = x.shape
+        x = x.view(B*T,C)
+        clean_logits = self.weights(x)
+
+        if self.training: #add noise
+            epsilon = torch.randn_like()
+            noise_scale = F.softplus(self.noise(x))
+            noisy_logits = clean_logits + epsilon * noise_scale
+        else:
+            noisy_logits = clean_logits
+        probs = F.softmax(noisy_logits,dim=-1)
+        return probs #gives probabalities of experts
+    
+class MoELayer(nn.Module):
+    def __init__(self,num_experts=4):
+        super().__init__()
+        self.experts = nn.ModuleList([FFNN() for _ in range(num_experts)])
+    def forward(self,x,probs):
+        #pick top-k and call FFNN for that particular experts
+        pass
 
 class TransformerBlock(nn.Module):
     def __init__(self):
         super().__init__()
         self.attention = MutliHeadAttention()
-        self.ffnn = FFNN()
+        self.router = Router()
+        self.experts = MoELayer()
         self.layer_norm1 = nn.LayerNorm(d_model)
         self.layer_norm2 = nn.LayerNorm(d_model)
 
     def forward(self,x):
         x = self.layer_norm1(self.attention(x)+x)
-        x = self.layer_norm2(x + self.ffnn(x))
+        expert_probs = self.router(x)
+        moe_output = self.experts(x,expert_probs)
+        x = self.layer_norm2(x + moe_output)
         return x
 
 class GPT(nn.Module):
