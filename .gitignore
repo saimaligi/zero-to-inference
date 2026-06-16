@@ -3,3 +3,4 @@ slurm/
 .venv
 .claude
 .DS_Store
+outputs/

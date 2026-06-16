@@ -43,6 +43,7 @@ generation_config = dict(
 )
 
 
+
 #speculative decoding loop
 prompt = "Explain Machine Learning in simple terms"
 input = tokenizer(prompt,return_tensors='pt').to(device) #return PyTorch tensors
@@ -139,9 +140,42 @@ print(final_text)
 print(f"Acceptance rate : {total_accepted / total_draft:.2%}")
     
 
+#perplexity metric
+def compute_perplexity(model, tokenizer, dataset, device, max_length=256):
+    model.eval()
+    total_loss   = 0.0
+    total_tokens = 0
 
-    
+    with torch.no_grad():
+        for example in dataset:
+            tokens = tokenizer(
+                example['text'],
+                return_tensors='pt',
+                truncation=True,
+                max_length=max_length + 1
+            )['input_ids'].to(device)
 
+            if tokens.shape[1] < 2:
+                continue
+
+            x = tokens[:, :-1]
+            y = tokens[:, 1:]
+
+            logits, _ = model(x)
+
+            B, T, C = logits.shape
+            loss = F.cross_entropy(
+                logits.view(B * T, C),
+                y.view(B * T),
+                reduction='sum'    # sum not mean — need total log likelihood
+            )
+
+            total_loss   += loss.item()
+            total_tokens += T
+
+    avg_nll    = total_loss / total_tokens   # average negative log likelihood per token
+    perplexity = torch.exp(torch.tensor(avg_nll)).item()
+    return perplexity
 
 
 
