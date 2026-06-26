@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(device)
+#print(device)
 
 #Tokenizer is same for two models
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b-it")
@@ -24,14 +24,8 @@ draft_model = AutoModelForCausalLM.from_pretrained(
     dtype=torch.float16,
     revision="float16",
 )
-print('models_loaded')
 
-prompt = "Explain Machine Learning in simple terms"
-input = tokenizer(prompt, return_tensors="pt").to(device) #pt -> PyTorch Tensors
-
-#input_ids is a dict with keys: input_ids, attention_mask
-input_ids = input['input_ids']
-attention_mask = input['attention_mask']
+#print('models_loaded')
 
 generation_config = dict(
     do_sample = True, #Sampling not greedy approach
@@ -43,11 +37,12 @@ generation_config = dict(
 )
 
 
+#tokenizer to a prompt returns: dict with keys: input_ids, attention_mask
 
-#speculative decoding loop
 prompt = "Explain Machine Learning in simple terms"
 input = tokenizer(prompt,return_tensors='pt').to(device) #return PyTorch tensors
 prompt_ids = input['input_ids']
+attention_mask = input['attention_mask']
 current_ids = prompt_ids.clone()
 prompt_len = prompt_ids.shape[1]
 
@@ -55,8 +50,10 @@ generated_tokens = []
 max_new_tokens = 100
 total_draft = 0
 total_accepted = 0
-k = 4
+k = 4 #Generating k token and verifying
 
+
+#speculative decoding loop
 while len(generated_tokens) < max_new_tokens:
 
     base_len = current_ids.shape[1]
@@ -140,42 +137,7 @@ print(final_text)
 print(f"Acceptance rate : {total_accepted / total_draft:.2%}")
     
 
-#perplexity metric
-def compute_perplexity(model, tokenizer, dataset, device, max_length=256):
-    model.eval()
-    total_loss   = 0.0
-    total_tokens = 0
 
-    with torch.no_grad():
-        for example in dataset:
-            tokens = tokenizer(
-                example['text'],
-                return_tensors='pt',
-                truncation=True,
-                max_length=max_length + 1
-            )['input_ids'].to(device)
-
-            if tokens.shape[1] < 2:
-                continue
-
-            x = tokens[:, :-1]
-            y = tokens[:, 1:]
-
-            logits, _ = model(x)
-
-            B, T, C = logits.shape
-            loss = F.cross_entropy(
-                logits.view(B * T, C),
-                y.view(B * T),
-                reduction='sum'    # sum not mean — need total log likelihood
-            )
-
-            total_loss   += loss.item()
-            total_tokens += T
-
-    avg_nll    = total_loss / total_tokens   # average negative log likelihood per token
-    perplexity = torch.exp(torch.tensor(avg_nll)).item()
-    return perplexity
 
 
 
