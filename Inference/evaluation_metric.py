@@ -5,19 +5,20 @@
 
 import torch
 import time
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def perplexity_score(model,tokenizer,prompt):
-    input = tokenizer(prompt,return_tensors='pt')
+def perplexity_score(model,input_ids):
     with torch.no_grad():
-        input_ids = input['input_ids']
-        attention_mask = input['attention_mask']
-        outputs = model(input_ids=input_ids,attention_mask=attention_mask,labels=input_ids)
+        outputs = model(input_ids=input_ids,labels=input_ids)
         perplexity_score = torch.exp(outputs.loss.item())
     print(f'{perplexity_score=}')
 
 
 
-def model_speed(model, input_ids, attention_mask, tokenizer):
+def generation_speed(model, tokenizer, prompt):
+    input = tokenizer(prompt,return_tensors='pt').to(device)
+    input_ids = input['input_ids']
+    attention_mask = input['attention_mask']
     prompt_len = input_ids.shape[1]
 
     generate_config = dict(
@@ -49,7 +50,7 @@ def model_speed(model, input_ids, attention_mask, tokenizer):
     print(f"Time taken           : {time_taken:.2f}s")
     print(f"Speed                : {speed:.2f} tokens/sec")
     
-    return generated_text, tokens_generated, time_taken, speed
+    return output[0]
 
 
 
