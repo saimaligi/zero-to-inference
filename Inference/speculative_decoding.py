@@ -1,13 +1,15 @@
 import torch
 import time
+import evaluation_metric
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-#print(device)
 
-#Tokenizer is same for two models
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b-it")
+#Tokenizer
+tokenizer_draft  = AutoTokenizer.from_pretrained("google/gemma-2b-it")
+tokenizer_target = AutoTokenizer.from_pretrained("google/gemma-7b-it")
+
 
 #target model
 target_model = AutoModelForCausalLM.from_pretrained(
@@ -25,22 +27,19 @@ draft_model = AutoModelForCausalLM.from_pretrained(
     revision="float16",
 )
 
-#print('models_loaded')
+prompt = "Explain Machine Learning in simple terms"
 
-generation_config = dict(
-    do_sample = True, #Sampling not greedy approach
-    temperature = 1.0,
-    top_k = 50,
-    top_p = 1,
-    max_new_tokens = 500,
-    repetition_penalty=1.3,
-)
+#Metrics of taget model
+tokens = evaluation_metric.generation_speed(target_model, tokenizer_target, prompt)
+evaluation_metric.perplexity_score(target_model,tokens)
+
+#Metrics of draft model
+tokens = evaluation_metric.generation_speed(draft_model, tokenizer_draft, prompt)
+evaluation_metric.perplexity_score(draft_model,tokens)
 
 
 #tokenizer to a prompt returns: dict with keys: input_ids, attention_mask
-
-prompt = "Explain Machine Learning in simple terms"
-input = tokenizer(prompt,return_tensors='pt').to(device) #return PyTorch tensors
+input = tokenizer_draft(prompt,return_tensors='pt').to(device)
 prompt_ids = input['input_ids']
 attention_mask = input['attention_mask']
 current_ids = prompt_ids.clone()
@@ -125,14 +124,14 @@ while len(generated_tokens) < max_new_tokens:
         token_tensor = torch.tensor([[token]]).to(device)
         current_ids = torch.cat([current_ids,token_tensor],dim=-1)
         generated_tokens.append(token)
-        if token == tokenizer.eos_token_id:
+        if token == tokenizer_draft.eos_token_id:
             break
 
-    if generated_tokens and generated_tokens[-1] == tokenizer.eos_token_id:
+    if generated_tokens and generated_tokens[-1] == tokenizer_draft.eos_token_id:
         break
 
 
-final_text = tokenizer.decode(current_ids[0], skip_special_tokens=True)
+final_text = tokenizer_draft.decode(current_ids[0], skip_special_tokens=True)
 print(final_text)
 print(f"Acceptance rate : {total_accepted / total_draft:.2%}")
     
